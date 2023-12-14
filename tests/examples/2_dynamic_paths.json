@@ -1,0 +1,37 @@
+{
+    "httpRequest": {
+        "latency": "0.029s",
+        "protocol": "HTTP/1.1",
+        "remoteIp": "109.77.144.121",
+        "requestMethod": "POST",
+        "requestUrl": "https://gatewat-s72dnn9.nw.gateway.dev/pets/1/67",
+        "responseSize": "1613",
+        "status": 405,
+        "userAgent": "PostmanRuntime/7.35.0"
+    },
+    "insertId": "60c7e890e57254609927478b76841cba-1@a1",
+    "jsonPayload": {
+        "api": "//apigateway.googleapis.com/projects/61377165045/locations/global/apis/firetail-testing-api-gateway",
+        "apiConfig": "//apigateway.googleapis.com/projects/61377165045/locations/global/apis/firetail-testing-api-gateway/configs/test",
+        "apiKey": "",
+        "apiMethod": "1.firetail_testing_api_gateway_022u7tyhkefhv_apigateway_gcp_test_395910_cloud_goog.Pet_id",
+        "backendRequest": {
+            "duration": "29ms",
+            "hostname": "backend-cluster-google.com:443",
+            "path": "/?pet_id=1&pet2_id=67"
+        },
+        "consumerNumber": "0",
+        "responseDetails": "via_upstream"
+    },
+    "logName": "projects/gcp-test-395910/logs/apigateway.googleapis.com%2Frequests",
+    "receiveTimestamp": "2023-12-14T20:57:51.385022487Z",
+    "resource": {
+        "labels": {
+            "gateway_id": "gatewat",
+            "location": "europe-west2",
+            "resource_container": "projects/61377165045"
+        },
+        "type": "apigateway.googleapis.com/Gateway"
+    },
+    "timestamp": "2023-12-14T20:57:40.111430882Z"
+}
