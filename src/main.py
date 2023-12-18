@@ -17,7 +17,7 @@ FIRETAIL_API = os.getenv("FIRETAIL_API", "https://api.logging.eu-west-1.sandbox.
 FIRETAIL_APP_TOKEN = os.environ["FIRETAIL_APP_TOKEN"]
 PROJECT_ID = os.environ["PROJECT_ID"] #"gcp-test-395910"
 SUBSCRIPTION_ID = os.environ["SUBSCRIPTION_ID"] #"firetail"
-
+MAX_MESSAGES = os.getenv("MAX_MESSAGES", 10)
 
 class FireTailFailedIngest(Exception):
     pass
@@ -172,7 +172,7 @@ class FireTailLog:
             dateCreated=calc_datecreated_time(log["timestamp"]),
         )
 
-def process_messages(subscriber, subscription_path, max_messages=3):
+def process_bulk_messages(subscriber, subscription_path, max_messages=3):
     # Wrap the subscriber in a 'with' block to automatically call close() to
     # close the underlying gRPC channel when done.
     with subscriber:
@@ -204,4 +204,4 @@ if __name__ == "__main__":
     subscriber = pubsub_v1.SubscriberClient()
     subscription_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_ID)
 
-    process_messages(subscriber, subscription_path)
+    process_bulk_messages(subscriber, subscription_path, MAX_MESSAGES)
