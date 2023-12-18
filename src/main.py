@@ -1,26 +1,29 @@
+import json
+import time
+from abc import abstractmethod
+from dataclasses import dataclass
+from urllib.parse import urlparse
+
+from dataclasses_json import dataclass_json
+from dateutil import parser as date_parser
 from google.api_core import retry
 from google.cloud import pubsub_v1
-import time
-from dataclasses import dataclass
-from dataclasses_json import dataclass_json
-from abc import abstractmethod
-from dateutil import parser as date_parser
-import json
-from urllib.parse import urlparse
+
 
 def get_param_from_url(url):
     return [i.split("=") for i in url.split("?", 1)[-1].split("&")]
 
+
 def replace_last_occurance(path, value, key):
     return key.join(path.rsplit(value, 1))
 
+
 def get_resource_path(uri, backendPath):
-    
     starting_path = urlparse(uri).path
     if "?" not in backendPath:
         return starting_path
     query_list = get_param_from_url(backendPath)
-    
+
     for item in reversed(query_list):
         starting_path = replace_last_occurance(starting_path, "/" + str(item[1]), "/{" + str(item[0]) + "}")
     return starting_path
@@ -31,6 +34,7 @@ def calc_datecreated_time(datecreated_str: str) -> int:
         return int(date_parser.parse(datecreated_str).timestamp() * 1000)
     except Exception:
         return int(time.time() * 1000)
+
 
 @dataclass_json
 @dataclass
@@ -48,6 +52,7 @@ class FireTailMetadata:
     resourceType: str
     requestPayload: bool
     responsePayload: bool
+
     @abstractmethod
     def load_metadata(log: dict):
         return FireTailMetadata(
@@ -56,15 +61,20 @@ class FireTailMetadata:
             apiKey=log.get("jsonPayload", {}).get("apiKey"),
             apiMethod=log.get("jsonPayload", {}).get("apiMethod"),
             backendRequestDuration=log.get("jsonPayload", {}).get("backendRequest", {}).get("duration", "0ms"),
-            backendRequestHostname=log.get("jsonPayload", {}).get("backendRequest", {}).get("hostname",),
+            backendRequestHostname=log.get("jsonPayload", {})
+            .get("backendRequest", {})
+            .get(
+                "hostname",
+            ),
             backendRequestPath=log.get("jsonPayload", {}).get("backendRequest", {}).get("path", "/"),
             consumerNumber=log.get("jsonPayload", {}).get("consumerNumber"),
             responseDetails=log.get("jsonPayload", {}).get("responseDetails"),
             logName=log.get("logName"),
             resourceType=log.get("resource", {}).get("type", "apigateway.googleapis.com/Gateway"),
             requestPayload=False,
-            responsePayload=False
-            )
+            responsePayload=False,
+        )
+
 
 @dataclass_json
 @dataclass
@@ -74,6 +84,7 @@ class FireTailRequest:
     uri: str
     ip: str
     headers: dict[str, list[str]]
+
     @abstractmethod
     def load_request(log: dict):
         return FireTailRequest(
@@ -81,21 +92,24 @@ class FireTailRequest:
             httpProtocol=log.get("httpRequest", {}).get("protocol"),
             uri=log.get("httpRequest", {}).get("requestUrl"),
             headers={"User-Agent": [log.get("httpRequest", {}).get("userAgent")]},
-            ip=log.get("httpRequest", {}).get("remoteIp")
+            ip=log.get("httpRequest", {}).get("remoteIp"),
         )
-        
+
 
 @dataclass_json
 @dataclass
 class FireTailResponse:
     statusCode: int
     headers: dict[str, list[str]]
+
     @abstractmethod
     def load_response(log: dict):
         return FireTailResponse(
             statusCode=log.get("httpRequest", {}).get("status"),
             headers={"Content-Length": [log.get("httpRequest", {}).get("responseSize", 0)]},
         )
+
+
 @dataclass_json
 @dataclass
 class FireTailLog:
@@ -105,11 +119,12 @@ class FireTailLog:
     response: FireTailResponse
     executionTime: int
     dateCreated: int
+
     @abstractmethod
     def load_log(log: dict):
-        execution_time = log.get("jsonPayload",{}).get("backendRequest", {}).get("duration", "0ms")
+        execution_time = log.get("jsonPayload", {}).get("backendRequest", {}).get("duration", "0ms")
         try:
-            execution_time = int(execution_time.replace("ms",""))
+            execution_time = int(execution_time.replace("ms", ""))
         except:
             execution_time = 0
         return FireTailLog(
@@ -118,8 +133,9 @@ class FireTailLog:
             request=FireTailRequest.load_request(log),
             response=FireTailResponse.load_response(log),
             executionTime=execution_time,
-            dateCreated=calc_datecreated_time(log['timestamp'])
+            dateCreated=calc_datecreated_time(log["timestamp"]),
         )
+
 
 # TODO(developer)
 project_id = "gcp-test-395910"
@@ -131,12 +147,13 @@ subscription_path = subscriber.subscription_path(project_id, subscription_id)
 NUM_MESSAGES = 3
 
 
-
 def call_firetail():
     pass
 
+
 def reformat_message(message):
     return message
+
 
 def process_messages(subscriber, subscription_path):
     # Wrap the subscriber in a 'with' block to automatically call close() to
@@ -163,14 +180,9 @@ def process_messages(subscriber, subscription_path):
                 ack_ids.append(received_message.ack_id)
 
             # Acknowledges the received messages so they will not be sent again.
-            subscriber.acknowledge(
-                request={"subscription": subscription_path, "ack_ids": ack_ids}
-            )
+            subscriber.acknowledge(request={"subscription": subscription_path, "ack_ids": ack_ids})
 
-            print(
-                f"Received and acknowledged {len(response.received_messages)} messages from {subscription_path}."
-            )
-            
+            print(f"Received and acknowledged {len(response.received_messages)} messages from {subscription_path}.")
 
 
 if __name__ == "__main__":
