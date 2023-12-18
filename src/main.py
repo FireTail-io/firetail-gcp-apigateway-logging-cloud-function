@@ -14,19 +14,20 @@ def get_param_from_url(url):
     return [i.split("=") for i in url.split("?", 1)[-1].split("&")]
 
 
-def replace_last_occurance(path, value, key):
-    return key.join(path.rsplit(value, 1))
-
-
-def get_resource_path(uri, backendPath):
-    starting_path = urlparse(uri).path
+def get_resource_path(uri: str, backendPath: str):
+    parsed_path = urlparse(uri).path
     if "?" not in backendPath:
-        return starting_path
-    query_list = get_param_from_url(backendPath)
+        return parsed_path
 
-    for item in reversed(query_list):
-        starting_path = replace_last_occurance(starting_path, "/" + str(item[1]), "/{" + str(item[0]) + "}")
-    return starting_path
+    query_list = get_param_from_url(backendPath)
+    path_parts = parsed_path.split("/")
+
+    for i, (query_key, query_value) in enumerate(reversed(query_list)):
+        if path_parts[-1 - i] != query_value:
+            continue
+        path_parts[-1 - i] = f"{{{query_key}}}"
+
+    return "/".join(path_parts)
 
 
 def calc_datecreated_time(datecreated_str: str) -> int:
