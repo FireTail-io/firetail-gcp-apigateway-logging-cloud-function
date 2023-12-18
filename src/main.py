@@ -137,16 +137,6 @@ class FireTailLog:
         )
 
 
-# TODO(developer)
-project_id = "gcp-test-395910"
-subscription_id = "firetail"
-
-subscriber = pubsub_v1.SubscriberClient()
-subscription_path = subscriber.subscription_path(project_id, subscription_id)
-
-NUM_MESSAGES = 3
-
-
 def call_firetail():
     pass
 
@@ -155,7 +145,7 @@ def reformat_message(message):
     return message
 
 
-def process_messages(subscriber, subscription_path):
+def process_messages(subscriber, subscription_path, max_messages=3):
     # Wrap the subscriber in a 'with' block to automatically call close() to
     # close the underlying gRPC channel when done.
     with subscriber:
@@ -165,7 +155,7 @@ def process_messages(subscriber, subscription_path):
             print("loop")
             time.sleep(2)
             response = subscriber.pull(
-                request={"subscription": subscription_path, "max_messages": NUM_MESSAGES},
+                request={"subscription": subscription_path, "max_messages": max_messages},
                 retry=retry.Retry(deadline=300),
             )
 
@@ -186,4 +176,10 @@ def process_messages(subscriber, subscription_path):
 
 
 if __name__ == "__main__":
+    PROJECT_ID = "gcp-test-395910"
+    SUBSCRIPTION_ID = "firetail"
+
+    subscriber = pubsub_v1.SubscriberClient()
+    subscription_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_ID)
+
     process_messages(subscriber, subscription_path)
