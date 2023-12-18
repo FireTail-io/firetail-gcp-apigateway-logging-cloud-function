@@ -1,3 +1,4 @@
+import os
 import sys
 
 sys.path.insert(0, ".")
@@ -5,6 +6,9 @@ sys.path.insert(1, "src/")
 
 from main import get_resource_path
 
+os.environ['FIRETAIL_APP_TOKEN'] = "fake"
+os.environ['PROJECT_ID'] = "fake"
+os.environ['SUBSCRIPTION_ID'] = "fake"
 
 def test_resource_path():
     result = get_resource_path("https://gatewat-s72dnn9.nw.gateway.dev/pets/1/37", "/?item2=37")

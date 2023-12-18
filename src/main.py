@@ -1,5 +1,8 @@
 import json
 import time
+import os
+import requests
+import ndjson
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -8,6 +11,34 @@ from dateutil import parser as date_parser
 from google.api_core import retry
 from google.cloud import pubsub_v1
 
+REQUESTS_SESSION = requests.Session()
+
+FIRETAIL_API = os.getenv("FIRETAIL_API", "https://api.logging.eu-west-1.sandbox.firetail.app/aws/lb/bulk")
+FIRETAIL_APP_TOKEN = os.environ["FIRETAIL_APP_TOKEN"]
+PROJECT_ID = os.environ["PROJECT_ID"] #"gcp-test-395910"
+SUBSCRIPTION_ID = os.environ["SUBSCRIPTION_ID"] #"firetail"
+
+
+class FireTailFailedIngest(Exception):
+    pass
+
+
+class InvalidRequest(Exception):
+    pass
+
+
+class InvalidRawGCPLog(Exception):
+    pass
+
+def ship_logs(logs: list):
+    if logs == []:
+        return
+    response = REQUESTS_SESSION.post(
+        url=FIRETAIL_API, headers={"x-ft-app-key": FIRETAIL_APP_TOKEN}, data=ndjson.dumps(logs)
+    )
+    if response.status_code != 201:
+        raise FireTailFailedIngest(response.text)
+    return response.json()
 
 def get_param_from_url(url):
     return [i.split("=") for i in url.split("?", 1)[-1].split("&")]
@@ -82,15 +113,20 @@ class FireTailRequest:
     method: str
     httpProtocol: str
     uri: str
+    resource: str
     ip: str
     headers: dict[str, list[str]]
 
     @staticmethod
     def load_request(log: dict):
+        uri = log.get("httpRequest", {}).get("requestUrl")
+        backendPath = log.get("jsonPayload", {}).get("backendRequest", {}).get("path", "/")
+        resource = get_resource_path(uri, backendPath)
         return FireTailRequest(
             method=log.get("httpRequest", {}).get("requestMethod"),
             httpProtocol=log.get("httpRequest", {}).get("protocol"),
-            uri=log.get("httpRequest", {}).get("requestUrl"),
+            uri=uri,
+            resource=resource,
             headers={"User-Agent": [log.get("httpRequest", {}).get("userAgent")]},
             ip=log.get("httpRequest", {}).get("remoteIp"),
         )
@@ -136,15 +172,6 @@ class FireTailLog:
             dateCreated=calc_datecreated_time(log["timestamp"]),
         )
 
-
-def call_firetail():
-    pass
-
-
-def reformat_message(message):
-    return message
-
-
 def process_messages(subscriber, subscription_path, max_messages=3):
     # Wrap the subscriber in a 'with' block to automatically call close() to
     # close the underlying gRPC channel when done.
@@ -163,22 +190,17 @@ def process_messages(subscriber, subscription_path, max_messages=3):
                 continue
 
             ack_ids = []
+            logs = []
             for received_message in response.received_messages:
                 print(f"Received: {received_message.message.data}.")
                 data = json.loads(received_message.message.data.decode())
-                print(FireTailLog.load_log(data))
+                logs.append(FireTailLog.load_log(data))
                 ack_ids.append(received_message.ack_id)
-
+            ship_logs(logs)
             # Acknowledges the received messages so they will not be sent again.
             subscriber.acknowledge(request={"subscription": subscription_path, "ack_ids": ack_ids})
 
-            print(f"Received and acknowledged {len(response.received_messages)} messages from {subscription_path}.")
-
-
 if __name__ == "__main__":
-    PROJECT_ID = "gcp-test-395910"
-    SUBSCRIPTION_ID = "firetail"
-
     subscriber = pubsub_v1.SubscriberClient()
     subscription_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_ID)
 

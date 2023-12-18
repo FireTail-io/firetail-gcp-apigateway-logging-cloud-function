@@ -1,2 +1,5 @@
 google-cloud-pubsub
 google-cloud
+requests
+dataclass_json
+ndjson
