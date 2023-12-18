@@ -1,6 +1,5 @@
 import json
 import time
-from abc import abstractmethod
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -54,7 +53,7 @@ class FireTailMetadata:
     requestPayload: bool
     responsePayload: bool
 
-    @abstractmethod
+    @staticmethod
     def load_metadata(log: dict):
         return FireTailMetadata(
             apiId=log.get("jsonPayload", {}).get("api"),
@@ -86,7 +85,7 @@ class FireTailRequest:
     ip: str
     headers: dict[str, list[str]]
 
-    @abstractmethod
+    @staticmethod
     def load_request(log: dict):
         return FireTailRequest(
             method=log.get("httpRequest", {}).get("requestMethod"),
@@ -103,7 +102,7 @@ class FireTailResponse:
     statusCode: int
     headers: dict[str, list[str]]
 
-    @abstractmethod
+    @staticmethod
     def load_response(log: dict):
         return FireTailResponse(
             statusCode=log.get("httpRequest", {}).get("status"),
@@ -121,7 +120,7 @@ class FireTailLog:
     executionTime: int
     dateCreated: int
 
-    @abstractmethod
+    @staticmethod
     def load_log(log: dict):
         execution_time = log.get("jsonPayload", {}).get("backendRequest", {}).get("duration", "0ms")
         try:
