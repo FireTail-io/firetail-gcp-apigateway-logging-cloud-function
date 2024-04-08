@@ -1,11 +1,11 @@
 import json
-import time
 import os
-import requests
-import ndjson
+import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+import ndjson
+import requests
 from dataclasses_json import dataclass_json
 from dateutil import parser as date_parser
 from google.api_core import retry
@@ -13,11 +13,14 @@ from google.cloud import pubsub_v1
 
 REQUESTS_SESSION = requests.Session()
 
-FIRETAIL_API = os.getenv("FIRETAIL_API", "https://api.logging.eu-west-1.sandbox.firetail.app/aws/lb/bulk")
+FIRETAIL_API = os.getenv(
+    "FIRETAIL_API", "https://api.logging.eu-west-1.prod.firetail.app/aws/lb/bulk"
+)
 FIRETAIL_APP_TOKEN = os.environ["FIRETAIL_APP_TOKEN"]
-PROJECT_ID = os.environ["PROJECT_ID"] #"gcp-test-395910"
-SUBSCRIPTION_ID = os.environ["SUBSCRIPTION_ID"] #"firetail"
+PROJECT_ID = os.environ["PROJECT_ID"]  # "gcp-test-395910"
+SUBSCRIPTION_ID = os.environ["SUBSCRIPTION_ID"]  # "firetail"
 MAX_MESSAGES = os.getenv("MAX_MESSAGES", 10)
+
 
 class FireTailFailedIngest(Exception):
     pass
@@ -30,15 +33,20 @@ class InvalidRequest(Exception):
 class InvalidRawGCPLog(Exception):
     pass
 
+
 def ship_logs(logs: list):
     if logs == []:
         return
-    response = REQUESTS_SESSION.post(
-        url=FIRETAIL_API, headers={"x-ft-app-key": FIRETAIL_APP_TOKEN}, data=ndjson.dumps(logs)
-    )
-    if response.status_code != 201:
-        raise FireTailFailedIngest(response.text)
+    for i in range(0, len(logs), 100):
+        response = REQUESTS_SESSION.post(
+            url=FIRETAIL_API,
+            headers={"x-ft-app-key": FIRETAIL_APP_TOKEN},
+            data=ndjson.dumps(logs[i : i + 100]),
+        )
+        if response.status_code != 201:
+            raise FireTailFailedIngest(response.text)
     return response.json()
+
 
 def get_param_from_url(url):
     return [i.split("=") for i in url.split("?", 1)[-1].split("&")]
@@ -91,17 +99,23 @@ class FireTailMetadata:
             apiConfig=log.get("jsonPayload", {}).get("apiConfig"),
             apiKey=log.get("jsonPayload", {}).get("apiKey"),
             apiMethod=log.get("jsonPayload", {}).get("apiMethod"),
-            backendRequestDuration=log.get("jsonPayload", {}).get("backendRequest", {}).get("duration", "0ms"),
+            backendRequestDuration=log.get("jsonPayload", {})
+            .get("backendRequest", {})
+            .get("duration", "0ms"),
             backendRequestHostname=log.get("jsonPayload", {})
             .get("backendRequest", {})
             .get(
                 "hostname",
             ),
-            backendRequestPath=log.get("jsonPayload", {}).get("backendRequest", {}).get("path", "/"),
+            backendRequestPath=log.get("jsonPayload", {})
+            .get("backendRequest", {})
+            .get("path", "/"),
             consumerNumber=log.get("jsonPayload", {}).get("consumerNumber"),
             responseDetails=log.get("jsonPayload", {}).get("responseDetails"),
             logName=log.get("logName"),
-            resourceType=log.get("resource", {}).get("type", "apigateway.googleapis.com/Gateway"),
+            resourceType=log.get("resource", {}).get(
+                "type", "apigateway.googleapis.com/Gateway"
+            ),
             requestPayload=False,
             responsePayload=False,
         )
@@ -120,7 +134,9 @@ class FireTailRequest:
     @staticmethod
     def load_request(log: dict):
         uri = log.get("httpRequest", {}).get("requestUrl")
-        backendPath = log.get("jsonPayload", {}).get("backendRequest", {}).get("path", "/")
+        backendPath = (
+            log.get("jsonPayload", {}).get("backendRequest", {}).get("path", "/")
+        )
         resource = get_resource_path(uri, backendPath)
         return FireTailRequest(
             method=log.get("httpRequest", {}).get("requestMethod"),
@@ -142,7 +158,9 @@ class FireTailResponse:
     def load_response(log: dict):
         return FireTailResponse(
             statusCode=log.get("httpRequest", {}).get("status"),
-            headers={"Content-Length": [log.get("httpRequest", {}).get("responseSize", 0)]},
+            headers={
+                "Content-Length": [log.get("httpRequest", {}).get("responseSize", 0)]
+            },
         )
 
 
@@ -158,7 +176,9 @@ class FireTailLog:
 
     @staticmethod
     def load_log(log: dict):
-        execution_time = log.get("jsonPayload", {}).get("backendRequest", {}).get("duration", "0ms")
+        execution_time = (
+            log.get("jsonPayload", {}).get("backendRequest", {}).get("duration", "0ms")
+        )
         try:
             execution_time = int(execution_time.replace("ms", ""))
         except:
@@ -172,6 +192,7 @@ class FireTailLog:
             dateCreated=calc_datecreated_time(log["timestamp"]),
         )
 
+
 def process_bulk_messages(subscriber, subscription_path, max_messages=3):
     # Wrap the subscriber in a 'with' block to automatically call close() to
     # close the underlying gRPC channel when done.
@@ -179,10 +200,12 @@ def process_bulk_messages(subscriber, subscription_path, max_messages=3):
         # The subscriber pulls a specific number of messages. The actual
         # number of messages pulled may be smaller than max_messages.
         while True:
-            print("loop")
             time.sleep(2)
             response = subscriber.pull(
-                request={"subscription": subscription_path, "max_messages": max_messages},
+                request={
+                    "subscription": subscription_path,
+                    "max_messages": max_messages,
+                },
                 retry=retry.Retry(deadline=300),
             )
 
@@ -198,7 +221,10 @@ def process_bulk_messages(subscriber, subscription_path, max_messages=3):
                 ack_ids.append(received_message.ack_id)
             ship_logs(logs)
             # Acknowledges the received messages so they will not be sent again.
-            subscriber.acknowledge(request={"subscription": subscription_path, "ack_ids": ack_ids})
+            subscriber.acknowledge(
+                request={"subscription": subscription_path, "ack_ids": ack_ids}
+            )
+
 
 if __name__ == "__main__":
     subscriber = pubsub_v1.SubscriberClient()
