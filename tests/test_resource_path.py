@@ -35,3 +35,9 @@ def test_resource_path_3():
 def test_resource_path_4():
     result = get_resource_path("https://gatewat-s72dnn9.nw.gateway.dev/pets/1/37", "/")
     assert result == "/pets/1/37"
+
+def test_resource_path_same_id():
+    result = get_resource_path(
+        "https://gatewat-s72dnn9.nw.gateway.dev/pets/123/123", "/?pet_id=123&pet2_id=123"
+    )
+    assert result == "/pets/{pet_id}/{pet2_id}"

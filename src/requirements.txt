@@ -1,0 +1,7 @@
+google-cloud-pubsub
+google-cloud
+requests
+dataclasses-json
+ndjson
+functions-framework
+python-dateutil
