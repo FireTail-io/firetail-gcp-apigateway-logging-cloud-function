@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o errexit
+
 LOG_DESTINATION="${LOG_DESTINATION:-${0}.log}"
 FIRETAIL_API="${FIRETAIL_API:-https://api.logging.eu-west-1.prod.firetail.app/gcp/apigw/bulk}"
 
@@ -115,30 +117,35 @@ function create_pubsub_topic() {
   log_filter+="resource.labels.gateway_id=${GCP_GATEWAY_ID} AND "
   log_filter+="resource.labels.location=${GCP_REGION}"
 
-  gcloud services enable pubsub.googleapis.com >/dev/null
+  gcloud services enable pubsub.googleapis.com ||
+    alert_quit "Failed to enable pubsub.googleapis.com"
 
-  gcloud pubsub topics create "${PUBSUB_TOPIC_NAME}" --project="${GCP_PROJECT_ID}"
+  gcloud pubsub topics create "${PUBSUB_TOPIC_NAME}" --project="${GCP_PROJECT_ID}" ||
+    alert_quit "Failed to create pubsub topic"
 
   gcloud logging sinks create "${log_sink_name}" "${destination}" \
     --project="${GCP_PROJECT_ID}" \
     --description="log router for firetail" \
-    --log-filter="${log_filter}"
+    --log-filter="${log_filter}" ||
+    alert_quit "Failed to create logging sink"
 
   service_account=$(gcloud logging sinks describe --format='value(writerIdentity)' ${log_sink_name})
 
   gcloud pubsub topics add-iam-policy-binding "projects/${GCP_PROJECT_ID}/topics/${PUBSUB_TOPIC_NAME}" \
     --member="${service_account}" \
-    --role=roles/pubsub.publisher
+    --role=roles/pubsub.publisher ||
+    alert_quit "Failed to add IAM policy binding"
 }
 
 function deploy_cloud_function() {
   GCP_FUNCTION_NAME="${GCP_RESOURCE_PREFIX}-firetail-logging"
-  {
-    gcloud services enable cloudbuild.googleapis.com
-    gcloud services enable cloudfunctions.googleapis.com
-  } >/dev/null
 
-  if ! gcloud functions deploy "${GCP_FUNCTION_NAME}" \
+  gcloud services enable cloudbuild.googleapis.com ||
+    alert_quit "Failed to enable cloudbuild.googleapis.com"
+  gcloud services enable cloudfunctions.googleapis.com ||
+    alert_quit "Failed to enable cloudfunctions.googleapis.com"
+
+  gcloud functions deploy "${GCP_FUNCTION_NAME}" \
     --entry-point="subscribe" \
     --gen2 \
     --memory="256MB" \
@@ -150,9 +157,9 @@ function deploy_cloud_function() {
     --set-env-vars=FIRETAIL_APP_TOKEN="${FT_APP_TOKEN}" \
     --source="src/" \
     --timeout="60s" \
-    --trigger-topic="${PUBSUB_TOPIC_NAME}"; then
-    alert_quit "Failed to create Cloud Function"
-  fi
+    --trigger-topic="${PUBSUB_TOPIC_NAME}" ||
+    alert_quit "Failed to deploy Cloud Function"
+
 }
 
 function log() (
