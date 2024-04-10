@@ -3,7 +3,7 @@
 LOG_DESTINATION="${LOG_DESTINATION:-${0}.log}"
 FIRETAIL_API="${FIRETAIL_API:-https://api.logging.eu-west-1.prod.firetail.app/gcp/apigw/bulk}"
 DEFAULT_GCP_FUNCTION_NAME="firetail_logging"
-PUBSUB_TOPIC_NAME="firetail-apigateway-stackdriver-sink"
+PUBSUB_TOPIC_SUFFIX="pubsub-topic-logs-to-firetail"
 
 declare \
   FT_LOGGING_ENDPOINT \
@@ -11,7 +11,8 @@ declare \
   GCP_REGION \
   GCP_GATEWAY_ID \
   GCP_FUNCTION_NAME \
-  GCP_PROJECT_ID
+  GCP_PROJECT_ID \
+  PUBSUB_TOPIC_NAME
 
 function main() {
   check_gcloud_cli
@@ -72,8 +73,10 @@ function get_arguments() {
       if [[ "${GCP_FUNCTION_NAME}" == "" ]]; then
         log WARN "No function name provided, using default: '${DEFAULT_GCP_FUNCTION_NAME}'"
         GCP_FUNCTION_NAME="${DEFAULT_GCP_FUNCTION_NAME}"
+        PUBSUB_TOPIC_NAME="${GCP_FUNCTION_NAME}-${PUBSUB_TOPIC_SUFFIX}"
       fi
       log INFO "GCP_FUNCTION_NAME = ${GCP_FUNCTION_NAME}"
+      log INFO "PUBSUB_TOPIC_NAME = ${PUBSUB_TOPIC_NAME}"
       ;;
     "")
       break
@@ -106,14 +109,10 @@ function create_pubsub_topic() {
   destination="pubsub.googleapis.com/projects/${GCP_PROJECT_ID}/topics/${PUBSUB_TOPIC_NAME}"
   log_filter="resource.type=apigateway.googleapis.com/Gateway AND "
   log_filter+="resource.labels.gateway_id=${GCP_GATEWAY_ID} AND "
-  log_filter="resource.labels.location=${GCP_REGION}"
+  log_filter+="resource.labels.location=${GCP_REGION}"
   log_sink_name="firetail-log-routing"
 
   gcloud services enable pubsub.googleapis.com
-
-  gcloud pubsub subscriptions create \
-    --topic firetail-apigateway-stackdriver-sink firetail-subscription \
-    --project="${GCP_PROJECT_ID}"
 
   gcloud pubsub topics create "${PUBSUB_TOPIC_NAME}" --project="${GCP_PROJECT_ID}"
 
@@ -141,8 +140,6 @@ function deploy_cloud_function() {
     function_name_to_deploy="firetail_${GCP_FUNCTION_NAME}"
   fi
 
-  topic_prefix="${GCP_FUNCTION_NAME}-pubsub-topic-logs-to-firetail"
-
   if ! gcloud functions deploy "${function_name_to_deploy}" \
     --entry-point="subscribe" \
     --gen2 \
@@ -155,8 +152,7 @@ function deploy_cloud_function() {
     --set-env-vars=FIRETAIL_APP_TOKEN="${FT_APP_TOKEN}" \
     --source="src/" \
     --timeout="60s" \
-    --trigger-topic="${topic_prefix}" \
-    --trigger-topic=${PUBSUB_TOPIC_NAME}; then
+    --trigger-topic="${PUBSUB_TOPIC_NAME}"; then
     alert_quit "Failed to create Cloud Function"
   fi
 }
