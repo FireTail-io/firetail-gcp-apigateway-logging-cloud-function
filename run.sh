@@ -117,7 +117,7 @@ function create_pubsub_topic() {
   log_filter+="resource.labels.gateway_id=${GCP_GATEWAY_ID} AND "
   log_filter+="resource.labels.location=${GCP_REGION}"
 
-  gcloud services enable pubsub.googleapis.com ||
+  gcloud services enable pubsub.googleapis.com --project "${GCP_PROJECT_ID}" ||
     alert_quit "Failed to enable pubsub.googleapis.com"
 
   gcloud pubsub topics create "${PUBSUB_TOPIC_NAME}" --project="${GCP_PROJECT_ID}" ||
@@ -129,7 +129,11 @@ function create_pubsub_topic() {
     --log-filter="${log_filter}" ||
     alert_quit "Failed to create logging sink"
 
-  service_account=$(gcloud logging sinks describe --format='value(writerIdentity)' ${log_sink_name})
+  service_account=$(
+    gcloud logging sinks describe ${log_sink_name} \
+      --format='value(writerIdentity)' \
+      --project "${GCP_PROJECT_ID}"
+  )
 
   gcloud pubsub topics add-iam-policy-binding "projects/${GCP_PROJECT_ID}/topics/${PUBSUB_TOPIC_NAME}" \
     --member="${service_account}" \
@@ -140,9 +144,9 @@ function create_pubsub_topic() {
 function deploy_cloud_function() {
   GCP_FUNCTION_NAME="${GCP_RESOURCE_PREFIX}-firetail-logging"
 
-  gcloud services enable cloudbuild.googleapis.com ||
+  gcloud services enable cloudbuild.googleapis.com --project "${GCP_PROJECT_ID}" ||
     alert_quit "Failed to enable cloudbuild.googleapis.com"
-  gcloud services enable cloudfunctions.googleapis.com ||
+  gcloud services enable cloudfunctions.googleapis.com --project "${GCP_PROJECT_ID}" ||
     alert_quit "Failed to enable cloudfunctions.googleapis.com"
 
   gcloud functions deploy "${GCP_FUNCTION_NAME}" \
