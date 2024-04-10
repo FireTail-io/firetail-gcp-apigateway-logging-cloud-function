@@ -2,49 +2,41 @@
 
 LOG_DESTINATION="${LOG_DESTINATION:-${0}.log}"
 FIRETAIL_API="${FIRETAIL_API:-https://api.logging.eu-west-1.prod.firetail.app/gcp/apigw/bulk}"
-DEFAULT_GCP_FUNCTION_NAME="firetail_logging"
-PUBSUB_TOPIC_NAME="firetail-apigateway-stackdriver-sink"
 
+# args
 declare \
   FT_LOGGING_ENDPOINT \
   FT_APP_TOKEN \
   GCP_REGION \
   GCP_GATEWAY_ID \
-  GCP_FUNCTION_NAME \
-  GCP_PROJECT_ID
+  GCP_PROJECT_ID \
+  GCP_RESOURCE_PREFIX
+
+# derived from args
+declare \
+  PUBSUB_TOPIC_NAME \
+  GCP_FUNCTION_NAME
 
 function main() {
-  check_gcloud_cli
-  get_gcp_project_id
   get_arguments "$@"
+  check_gcloud_cli
   create_pubsub_topic
   deploy_cloud_function
 }
 
 function check_gcloud_cli() {
   if ! command -v gcloud >/dev/null; then
-    local err_msg="Failed to get gcloud CLI from PATH. Please install and authenticate gcloud CLI"
+    local err_msg="Failed to get gcloud CLI from PATH."
     log ERROR "${err_msg}"
-    alert_quit "${err_msg}"
+    alert_quit "${err_msg} Please install and authenticate gcloud CLI"
   fi
 }
 
-function get_gcp_project_id() {
-  gcp_account="$(gcloud auth list --filter=status:ACTIVE --format="value(account)")"
-  log INFO "GCP Account: ${gcp_account}"
-  echo "GCP account: ${gcp_account}"
-  PS3="Enter the number of the project for Cloud Function deployment: "
-  select gcp_project_id in $(gcloud projects list --format="value(projectId)"); do
-    gcloud config set project "${gcp_project_id}" ||
-      alert_quit "Failed to set project ID to ${gcp_project_id}"
-    GCP_PROJECT_ID="${gcp_project_id}"
-    log INFO "Cloud Function will deploy to ${gcp_project_id}"
-    # if invalid response, keep prompting
-    [[ -n "${response}" ]] && break
-  done
-}
-
 function get_arguments() {
+  (($# == 0)) && {
+    show_help
+    exit 0
+  }
   while true; do
     case "$1" in
     --help)
@@ -53,27 +45,27 @@ function get_arguments() {
       ;;
     --ft-logging-endpoint=*)
       FT_LOGGING_ENDPOINT="${1#--ft-logging-endpoint=}"
-      log INFO "FT_LOGGING_ENDPOINT = ${FT_LOGGING_ENDPOINT}"
+      log INFO "FT_LOGGING_ENDPOINT is ${FT_LOGGING_ENDPOINT}"
       ;;
-    --ft--app-token=*)
+    --ft-app-token=*)
       FT_APP_TOKEN="${1#--ft-app-token=}"
-      log INFO "FT_APP_TOKEN = ${FT_APP_TOKEN}"
+      log INFO "FT_APP_TOKEN is ${FT_APP_TOKEN}"
       ;;
     --gcp-region=*)
       GCP_REGION="${1#--gcp-region=}"
-      log INFO "GCP_REGION = ${GCP_REGION}"
+      log INFO "GCP_REGION is ${GCP_REGION}"
       ;;
     --gcp-gateway-id=*)
       GCP_GATEWAY_ID="${1#--gcp-gateway-id=}"
-      log INFO "GCP_GATEWAY_ID = ${GCP_GATEWAY_ID}"
+      log INFO "GCP_GATEWAY_ID is ${GCP_GATEWAY_ID}"
       ;;
-    --gcp-function-name=*)
-      GCP_FUNCTION_NAME="${1#--gcp-function-name=}"
-      if [[ "${GCP_FUNCTION_NAME}" == "" ]]; then
-        log WARN "No function name provided, using default: '${DEFAULT_GCP_FUNCTION_NAME}'"
-        GCP_FUNCTION_NAME="${DEFAULT_GCP_FUNCTION_NAME}"
-      fi
-      log INFO "GCP_FUNCTION_NAME = ${GCP_FUNCTION_NAME}"
+    --gcp-project-id=*)
+      GCP_PROJECT_ID="${1#--gcp-gateway-id=}"
+      log INFO "GCP_PROJECT_ID is ${GCP_PROJECT_ID}"
+      ;;
+    --gcp-resource-prefix=*)
+      GCP_RESOURCE_PREFIX="${1#--gcp-resource-prefix=}"
+      log INFO "GCP_RESOURCE_PREFIX is ${GCP_RESOURCE_PREFIX}"
       ;;
     "")
       break
@@ -89,31 +81,41 @@ function get_arguments() {
 
 function check_args_provided() {
   if [[ -z "${FT_LOGGING_ENDPOINT}" ]]; then
-    alert_quit "FireTail Region is missing; try '${0} --help' for more information"
+    show_help
+    alert_quit "--ft-logging-endpoint is missing"
   fi
   if [[ -z "${FT_APP_TOKEN}" ]]; then
-    alert_quit "FireTail Token is missing; try '${0} --help' for more information"
+    show_help
+    alert_quit "--ft-app-token is missing"
   fi
   if [[ -z "${GCP_REGION}" ]]; then
-    alert_quit "Region for Google Cloud Platform is missing; try '${0} --help' for more information"
+    show_help
+    alert_quit "--gcp-region is missing"
   fi
   if [[ -z "${GCP_GATEWAY_ID}" ]]; then
-    alert_quit "Gateway ID for Google Cloud Platform is missing; try '${0} --help' for more information"
+    show_help
+    alert_quit "--gcp-gateway-id is missing"
+  fi
+  if [[ -z "${GCP_PROJECT_ID}" ]]; then
+    show_help
+    alert_quit "--gcp-project-id is missing"
+  fi
+  if [[ -z "${GCP_RESOURCE_PREFIX}" ]]; then
+    show_help
+    alert_quit "--gcp-resource-prefix is missing"
   fi
 }
 
 function create_pubsub_topic() {
+  PUBSUB_TOPIC_NAME="${GCP_RESOURCE_PREFIX}-pubsub-topic-logs-to-firetail"
   destination="pubsub.googleapis.com/projects/${GCP_PROJECT_ID}/topics/${PUBSUB_TOPIC_NAME}"
-  log_filter="resource.type=apigateway.googleapis.com/Gateway AND "
-  log_filter+="resource.labels.gateway_id=${GCP_GATEWAY_ID} AND "
-  log_filter="resource.labels.location=${GCP_REGION}"
   log_sink_name="firetail-log-routing"
 
-  gcloud services enable pubsub.googleapis.com
+  log_filter="resource.type=apigateway.googleapis.com/Gateway AND "
+  log_filter+="resource.labels.gateway_id=${GCP_GATEWAY_ID} AND "
+  log_filter+="resource.labels.location=${GCP_REGION}"
 
-  gcloud pubsub subscriptions create \
-    --topic firetail-apigateway-stackdriver-sink firetail-subscription \
-    --project="${GCP_PROJECT_ID}"
+  gcloud services enable pubsub.googleapis.com >/dev/null
 
   gcloud pubsub topics create "${PUBSUB_TOPIC_NAME}" --project="${GCP_PROJECT_ID}"
 
@@ -130,20 +132,13 @@ function create_pubsub_topic() {
 }
 
 function deploy_cloud_function() {
+  GCP_FUNCTION_NAME="${GCP_RESOURCE_PREFIX}-firetail-logging"
   {
     gcloud services enable cloudbuild.googleapis.com
     gcloud services enable cloudfunctions.googleapis.com
   } >/dev/null
 
-  if [[ "${GCP_FUNCTION_NAME}" =~ ^firetail_* ]]; then
-    function_name_to_deploy="${GCP_FUNCTION_NAME}"
-  else
-    function_name_to_deploy="firetail_${GCP_FUNCTION_NAME}"
-  fi
-
-  topic_prefix="${GCP_FUNCTION_NAME}-pubsub-topic-logs-to-firetail"
-
-  if ! gcloud functions deploy "${function_name_to_deploy}" \
+  if ! gcloud functions deploy "${GCP_FUNCTION_NAME}" \
     --entry-point="subscribe" \
     --gen2 \
     --memory="256MB" \
@@ -155,8 +150,7 @@ function deploy_cloud_function() {
     --set-env-vars=FIRETAIL_APP_TOKEN="${FT_APP_TOKEN}" \
     --source="src/" \
     --timeout="60s" \
-    --trigger-topic="${topic_prefix}" \
-    --trigger-topic=${PUBSUB_TOPIC_NAME}; then
+    --trigger-topic="${PUBSUB_TOPIC_NAME}"; then
     alert_quit "Failed to create Cloud Function"
   fi
 }
@@ -172,7 +166,7 @@ function log() (
 
 function alert_quit() (
   IFS=" "
-  echo -e "\e[0;31m${0}: ${*}\e[0m"
+  echo -e "\033[0;31m${0}: ${*}\033[0m"
   exit 1
 )
 
@@ -180,13 +174,14 @@ function alert_quit() (
 # Output:
 #   Help usage
 function show_help() {
-  echo "Usage: ${0} --ft-logging-endpoint=<ft-logging-endpoint> --ft-app-token=<token> --gcp-region=<region> --gcp-gateway-id=<gateway-id> [--gcp-function-name=<function-name>]"
-  echo "Flags require --key=value format"
+  echo "Usage: ${0} --ft-logging-endpoint=<endpoint> --ft-app-token=<token> --gcp-region=<region> --gcp-gateway-id=<id> --gcp-project-id=<id> --gcp-resource-prefix=<prefix>"
+  echo -e "\033[1mFlags require --key=value format\033[0m"
   echo "  --ft-logging-endpoint  Endpoint for FireTail app"
   echo "  --ft-app-token         Token from target FireTail app"
-  echo "  --gcp-region           Region for GCP Cloud Function"
+  echo "  --gcp-region           Region for GCP cloud function"
   echo "  --gcp-gateway-id       GCP gateway ID"
-  echo "  --gcp-function-name    Cloud Function name and for prefix for services"
+  echo "  --gcp-project-id       GCP project for cloud function and pubsub topic"
+  echo "  --gcp-resource-prefix  Prefix for cloud function name and pubsub topic"
   echo "  --help                 Show usage"
 }
 
