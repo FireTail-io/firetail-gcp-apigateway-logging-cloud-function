@@ -186,7 +186,7 @@ function create_pubsub_topic() {
 }
 
 function deploy_cloud_function() {
-  GCP_FUNCTION_NAME="${GCP_RESOURCE_PREFIX}-firetail-logging"
+  GCP_FUNCTION_NAME="${GCP_RESOURCE_PREFIX}-logging-function"
 
   gcloud services enable cloudbuild.googleapis.com --project "${GCP_PROJECT_ID}" ||
     alert_quit "Failed to enable cloudbuild.googleapis.com"
@@ -234,12 +234,12 @@ function show_help() {
   top_line+="--gcp-resource-prefix=<prefix>"
 
   echo -e "\n${top_line}\n"
-  echo "  --ft-logging-endpoint  Endpoint for FireTail app"
-  echo "  --ft-app-token         Token from target FireTail app"
-  echo "  --gcp-region           Region for GCP cloud function"
+  echo "  --ft-logging-endpoint  FireTail logging endpoint"
+  echo "  --ft-app-token         FireTail application token"
+  echo "  --gcp-region           Region where the Gateway is deployed"
   echo "  --gcp-gateway-id       GCP gateway ID"
-  echo "  --gcp-project-num      GCP project number for cloud function and pubsub topic"
-  echo "  --gcp-resource-prefix  Prefix for cloud function name and pubsub topic"
+  echo "  --gcp-project-num      GCP project number"
+  echo "  --gcp-resource-prefix  Prefix added to resources created by this script"
   echo "  --help                 Show usage"
   echo ""
 }
