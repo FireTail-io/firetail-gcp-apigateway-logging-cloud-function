@@ -208,7 +208,7 @@ function deploy_cloud_function() {
     --project="${GCP_PROJECT_ID}" \
     --region="${GCP_REGION}" \
     --runtime="python312" \
-    --set-env-vars=FIRETAIL_API="${FT_LOGGING_ENDPOINT}" \
+    --set-env-vars=FIRETAIL_API="${FT_LOGGING_ENDPOINT}/gcp/apigw/bulk" \
     --set-env-vars=FIRETAIL_APP_TOKEN="${FT_APP_TOKEN}" \
     --source="src/" \
     --timeout="60s" \
