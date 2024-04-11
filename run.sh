@@ -73,7 +73,8 @@ function get_arguments() {
       break
       ;;
     *)
-      alert_quit "unrecognized flag; try '${0} --help' for more information"
+      show_help
+      alert_quit "unrecognized flag: '${1}'"
       ;;
     esac
     shift
