@@ -43,38 +43,72 @@ function get_arguments() {
     case "$1" in
     --help)
       show_help
-      exit
+      exit 0
       ;;
     --ft-logging-endpoint=*)
       FT_LOGGING_ENDPOINT="${1#--ft-logging-endpoint=}"
+      log INFO "FT_LOGGING_ENDPOINT is ${FT_LOGGING_ENDPOINT}"
+      ;;
+    --ft-logging-endpoint)
+      FT_LOGGING_ENDPOINT="${2}"
+      shift
       log INFO "FT_LOGGING_ENDPOINT is ${FT_LOGGING_ENDPOINT}"
       ;;
     --ft-app-token=*)
       FT_APP_TOKEN="${1#--ft-app-token=}"
       log INFO "FT_APP_TOKEN is ${FT_APP_TOKEN}"
       ;;
+    --ft-app-token)
+      FT_APP_TOKEN="${2}"
+      shift
+      log INFO "FT_APP_TOKEN is ${FT_APP_TOKEN}"
+      ;;
     --gcp-region=*)
       GCP_REGION="${1#--gcp-region=}"
+      log INFO "GCP_REGION is ${GCP_REGION}"
+      ;;
+    --gcp-region)
+      GCP_REGION="${2}"
+      shift
       log INFO "GCP_REGION is ${GCP_REGION}"
       ;;
     --gcp-gateway-id=*)
       GCP_GATEWAY_ID="${1#--gcp-gateway-id=}"
       log INFO "GCP_GATEWAY_ID is ${GCP_GATEWAY_ID}"
       ;;
+    --gcp-gateway-id)
+      GCP_GATEWAY_ID="${2}"
+      shift
+      log INFO "GCP_GATEWAY_ID is ${GCP_GATEWAY_ID}"
+      ;;
     --gcp-project-id=*)
       GCP_PROJECT_ID="${1#--gcp-project-id=}"
+      log INFO "GCP_PROJECT_ID is ${GCP_PROJECT_ID}"
+      ;;
+    --gcp-project-id)
+      GCP_PROJECT_ID="${2}"
+      shift
       log INFO "GCP_PROJECT_ID is ${GCP_PROJECT_ID}"
       ;;
     --gcp-resource-prefix=*)
       GCP_RESOURCE_PREFIX="${1#--gcp-resource-prefix=}"
       log INFO "GCP_RESOURCE_PREFIX is ${GCP_RESOURCE_PREFIX}"
       ;;
+    --gcp-resource-prefix)
+      GCP_RESOURCE_PREFIX="${2}"
+      shift
+      log INFO "GCP_RESOURCE_PREFIX is ${GCP_RESOURCE_PREFIX}"
+      ;;
     "")
       break
       ;;
-    *)
+    --*)
       show_help
       alert_quit "unrecognized flag: '${1}'"
+      ;;
+    *)
+      show_help
+      alert_quit "unrecognized argument: '${1}'"
       ;;
     esac
     shift
@@ -136,7 +170,8 @@ function create_pubsub_topic() {
       --project "${GCP_PROJECT_ID}"
   )
 
-  gcloud pubsub topics add-iam-policy-binding "projects/${GCP_PROJECT_ID}/topics/${PUBSUB_TOPIC_NAME}" \
+  gcloud pubsub topics add-iam-policy-binding \
+    "projects/${GCP_PROJECT_ID}/topics/${PUBSUB_TOPIC_NAME}" \
     --member="${service_account}" \
     --role=roles/pubsub.publisher ||
     alert_quit "Failed to add IAM policy binding"
@@ -186,8 +221,11 @@ function alert_quit() (
 # Output:
 #   Help usage
 function show_help() {
-  echo "Usage: ${0} --ft-logging-endpoint=<endpoint> --ft-app-token=<token> --gcp-region=<region> --gcp-gateway-id=<id> --gcp-project-id=<id> --gcp-resource-prefix=<prefix>"
-  echo -e "\033[1mFlags require --key=value format\033[0m"
+  top_line="Usage: ${0} --ft-logging-endpoint=<endpoint> --ft-app-token=<token> "
+  top_line+="--gcp-region=<region> --gcp-gateway-id=<id> --gcp-project-id=<id> "
+  top_line+="--gcp-resource-prefix=<prefix>"
+
+  echo -e "\n${top_line}\n"
   echo "  --ft-logging-endpoint  Endpoint for FireTail app"
   echo "  --ft-app-token         Token from target FireTail app"
   echo "  --gcp-region           Region for GCP cloud function"
@@ -195,6 +233,7 @@ function show_help() {
   echo "  --gcp-project-id       GCP project for cloud function and pubsub topic"
   echo "  --gcp-resource-prefix  Prefix for cloud function name and pubsub topic"
   echo "  --help                 Show usage"
+  echo ""
 }
 
 main "$@"
