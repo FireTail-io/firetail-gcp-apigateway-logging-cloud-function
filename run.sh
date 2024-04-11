@@ -154,7 +154,7 @@ function check_args_provided() {
 function create_pubsub_topic() {
   PUBSUB_TOPIC_NAME="${GCP_RESOURCE_PREFIX}-pubsub-topic-logs-to-firetail"
   destination="pubsub.googleapis.com/projects/${GCP_PROJECT_ID}/topics/${PUBSUB_TOPIC_NAME}"
-  log_sink_name="${GCP_RESOURCE_PREFIX}-firetail-log-routing"
+  log_sink_name="${GCP_RESOURCE_PREFIX}-log-sink"
 
   log_filter="resource.type=apigateway.googleapis.com/Gateway AND "
   log_filter+="resource.labels.gateway_id=${GCP_GATEWAY_ID} AND "
@@ -168,7 +168,7 @@ function create_pubsub_topic() {
 
   gcloud logging sinks create "${log_sink_name}" "${destination}" \
     --project="${GCP_PROJECT_ID}" \
-    --description="log router for firetail" \
+    --description="log router for FireTail" \
     --log-filter="${log_filter}" ||
     alert_quit "Failed to create logging sink"
 
