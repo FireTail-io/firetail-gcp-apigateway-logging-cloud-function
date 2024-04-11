@@ -62,7 +62,7 @@ function get_arguments() {
       log INFO "GCP_GATEWAY_ID is ${GCP_GATEWAY_ID}"
       ;;
     --gcp-project-id=*)
-      GCP_PROJECT_ID="${1#--gcp-gateway-id=}"
+      GCP_PROJECT_ID="${1#--gcp-project-id=}"
       log INFO "GCP_PROJECT_ID is ${GCP_PROJECT_ID}"
       ;;
     --gcp-resource-prefix=*)
@@ -178,7 +178,7 @@ function log() (
 
 function alert_quit() (
   IFS=" "
-  echo -e "\033[0;31m${0}: ${*}\033[0m"
+  echo -e "\033[0;1;31m${0}: ${*}\033[0m"
   exit 1
 )
 
