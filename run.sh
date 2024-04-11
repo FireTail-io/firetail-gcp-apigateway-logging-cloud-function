@@ -208,7 +208,6 @@ function deploy_cloud_function() {
     --no-allow-unauthenticated \
     --project="${GCP_PROJECT_ID}" \
     --region="${GCP_REGION}" \
-    --ingress internal \
     --runtime="python312" \
     --set-env-vars=FIRETAIL_API="${FIRETAIL_API}" \
     --set-env-vars=FIRETAIL_APP_TOKEN="${FT_APP_TOKEN}" \
