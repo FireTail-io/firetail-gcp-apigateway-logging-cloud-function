@@ -64,7 +64,6 @@ function get_arguments() {
       ;;
     --ft-app-token=*)
       FT_APP_TOKEN="${1#--ft-app-token=}"
-      log INFO "FT_APP_TOKEN is ${FT_APP_TOKEN}"
       ;;
     --ft-app-token)
       FT_APP_TOKEN="${2}"
@@ -181,6 +180,7 @@ function create_pubsub_topic() {
   gcloud pubsub topics add-iam-policy-binding \
     "projects/${GCP_PROJECT_ID}/topics/${PUBSUB_TOPIC_NAME}" \
     --member="${service_account}" \
+    --project "${GCP_PROJECT_ID}" \
     --role=roles/pubsub.publisher ||
     alert_quit "Failed to add IAM policy binding"
 }
@@ -193,10 +193,18 @@ function deploy_cloud_function() {
   gcloud services enable cloudfunctions.googleapis.com --project "${GCP_PROJECT_ID}" ||
     alert_quit "Failed to enable cloudfunctions.googleapis.com"
 
+  REDUCED_PREFIX=$(echo "${GCP_RESOURCE_PREFIX}" | cut -c1-20)
+  SERVICE_ACCOUNT_NAME=$(echo "${REDUCED_PREFIX}-function" | cut -c1-30)
+  CLOUD_RUN_SERVICE_ACCOUNT=$(gcloud iam service-accounts create ${SERVICE_ACCOUNT_NAME} \
+      --description "Cloud Run Function service account for FireTail Logging" \
+      --display-name "FireTail Logging Cloud Run service account" \
+      --project "${GCP_PROJECT_ID}")
+
   gcloud functions deploy "${GCP_FUNCTION_NAME}" \
     --entry-point="subscribe" \
     --gen2 \
     --memory="256MB" \
+    --run-service-account=$CLOUD_RUN_SERVICE_ACCOUNT \
     --no-allow-unauthenticated \
     --project="${GCP_PROJECT_ID}" \
     --region="${GCP_REGION}" \
