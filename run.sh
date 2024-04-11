@@ -10,18 +10,20 @@ declare \
   FT_LOGGING_ENDPOINT \
   FT_APP_TOKEN \
   GCP_REGION \
+  GCP_PROJECT_NUM \
   GCP_GATEWAY_ID \
-  GCP_PROJECT_ID \
   GCP_RESOURCE_PREFIX
 
 # derived from args
 declare \
   PUBSUB_TOPIC_NAME \
+  GCP_PROJECT_ID \
   GCP_FUNCTION_NAME
 
 function main() {
   get_arguments "$@"
   check_gcloud_cli
+  set_gcp_project
   create_pubsub_topic
   deploy_cloud_function
 }
@@ -32,6 +34,12 @@ function check_gcloud_cli() {
     log ERROR "${err_msg}"
     alert_quit "${err_msg} Please install and authenticate gcloud CLI"
   fi
+}
+
+function set_gcp_project(){
+  gcloud config set project "${GCP_PROJECT_NUM}" ||
+    alert_quit "Failed to set project ID to ${GCP_PROJECT_NUM}"
+  GCP_PROJECT_ID=$(gcloud projects describe "${GCP_PROJECT_NUM}" --format='value(projectId)')
 }
 
 function get_arguments() {
@@ -81,14 +89,14 @@ function get_arguments() {
       shift
       log INFO "GCP_GATEWAY_ID is ${GCP_GATEWAY_ID}"
       ;;
-    --gcp-project-id=*)
-      GCP_PROJECT_ID="${1#--gcp-project-id=}"
-      log INFO "GCP_PROJECT_ID is ${GCP_PROJECT_ID}"
+    --gcp-project-num=*)
+      GCP_PROJECT_NUM="${1#--gcp-project-num=}"
+      log INFO "GCP_PROJECT_NUM is ${GCP_PROJECT_NUM}"
       ;;
-    --gcp-project-id)
-      GCP_PROJECT_ID="${2}"
+    --gcp-project-num)
+      GCP_PROJECT_NUM="${2}"
       shift
-      log INFO "GCP_PROJECT_ID is ${GCP_PROJECT_ID}"
+      log INFO "GCP_PROJECT_NUM is ${GCP_PROJECT_NUM}"
       ;;
     --gcp-resource-prefix=*)
       GCP_RESOURCE_PREFIX="${1#--gcp-resource-prefix=}"
@@ -133,9 +141,9 @@ function check_args_provided() {
     show_help
     alert_quit "--gcp-gateway-id is missing"
   fi
-  if [[ -z "${GCP_PROJECT_ID}" ]]; then
+  if [[ -z "${GCP_PROJECT_NUM}" ]]; then
     show_help
-    alert_quit "--gcp-project-id is missing"
+    alert_quit "--gcp-project-num is missing"
   fi
   if [[ -z "${GCP_RESOURCE_PREFIX}" ]]; then
     show_help
@@ -222,7 +230,7 @@ function alert_quit() (
 #   Help usage
 function show_help() {
   top_line="Usage: ${0} --ft-logging-endpoint=<endpoint> --ft-app-token=<token> "
-  top_line+="--gcp-region=<region> --gcp-gateway-id=<id> --gcp-project-id=<id> "
+  top_line+="--gcp-region=<region> --gcp-gateway-id=<id> --gcp-project-num=<number> "
   top_line+="--gcp-resource-prefix=<prefix>"
 
   echo -e "\n${top_line}\n"
@@ -230,7 +238,7 @@ function show_help() {
   echo "  --ft-app-token         Token from target FireTail app"
   echo "  --gcp-region           Region for GCP cloud function"
   echo "  --gcp-gateway-id       GCP gateway ID"
-  echo "  --gcp-project-id       GCP project for cloud function and pubsub topic"
+  echo "  --gcp-project-num      GCP project number for cloud function and pubsub topic"
   echo "  --gcp-resource-prefix  Prefix for cloud function name and pubsub topic"
   echo "  --help                 Show usage"
   echo ""
